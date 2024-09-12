@@ -1,4 +1,4 @@
-let timeLeft = 20; // Initial time in seconds
+let timeLeft = 120; // Initial time in seconds
 let timerId; // To store the interval ID
 
 function startTimer() {
