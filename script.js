@@ -1,5 +1,5 @@
-//const snakes = { 99: 54, 87: 36, 62: 19, 17: 7 };
-const snakes = { 2: 1};
+const snakes = { 99: 54, 87: 36, 62: 19, 17: 7 };
+//const snakes = { 2: 1};
 const ladders = { 3: 22, 6: 25, 20: 29, 30: 90, 57: 76, 72: 91 };
 
 let players = [];
