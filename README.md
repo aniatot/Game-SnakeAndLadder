@@ -24,6 +24,8 @@ Welcome to the classic Snake and Ladder Game, built using HTML, CSS, JavaScript,
 - Ladders: Landing at the base of a ladder allows the player to move up to the top of the ladder.
 - Winning: The player who reaches exactly 100 wins. If a player overshoots position 100, they bounce back by the excess amount.
 - Turns: Players take turns rolling the dice. Rolling a 1 allows for an extra roll.
+# Play
+- click this url : [Snake and Ladder](https://aniatot.github.io/Game-SnakeAndLadder/)
 # Installation and Setup
 1. Clone the repository:
 ```js
