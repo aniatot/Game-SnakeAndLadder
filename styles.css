@@ -1,0 +1,207 @@
+/* Snake and Ladder Board */
+html, body {
+  background-color: #3e4357;
+}
+.container{
+ background-color: transparent;
+}
+.container h2 {
+  color: #fff;
+}
+
+#player-setup {
+  padding: 64px 0;
+}
+.turn-indicator {
+  font-weight: bold;
+}
+#board-wrapper {
+  display: inline-flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 100px;
+}
+
+#start, #home {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 60px;
+  height: 60px;
+  outline: 4px solid #fff;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  color: navy;
+  margin: 16px;
+  background-color: #50bfce;
+  flex-wrap: wrap;
+}
+
+#start span,
+#home span {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  position: absolute;
+  font-size: 20px;
+}
+#board {
+  display: grid;
+  grid-template-columns: repeat(10, 60px);
+  grid-template-rows: repeat(10, 60px);
+  gap: 2px;
+  margin: 0px auto;
+  padding: 16px;
+  border: 2px solid #fff;
+  background-color: #fff;  
+  color: #fff;
+}
+
+.board-cell {
+  width: 60px;
+  height: 60px;
+  border: 1px solid #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+/* Snake and Ladder Styles */
+.snake {
+  border: 5px solid;
+  border-color: #991010;
+}
+
+.ladder {
+  border: 5px dashed;
+  border-color: #472fd1;
+}
+
+
+/* Player Tokens */
+.player-token {
+  width: 20px; 
+  height: 20px;
+  border: 1px solid transparent;
+  outline: 2px solid #fff;  
+  box-shadow: inset 0 0 4px #333;
+  border-radius: 50%;
+  position: relative;
+  top: 2px;
+  left: 2px;
+  margin: 2px;
+  transition: transform 0.5s ease, box-shadow 0.3s ease; /* Smooth transitions */
+}
+.token-1 {
+  background-color: #007bff;
+  border-color: #ff8000;
+}
+
+.token-2 {
+  background-color: #28a745;
+  border-color: #d428aa;
+}
+
+.token-3 {
+  background-color: #ffc107;
+  border-color: #0028f1;
+}
+
+.token-4 {
+  background-color: #dc3545;
+  border-color: #33dc87;
+}
+
+.color-1 {
+  background-color: #B8D12F;
+  box-shadow: inset -2px -2px 0px 1px rgba(0, 0, 0, 0.1), inset 2px 2px 0px 1px rgba(0, 0, 0, 0.1);
+}
+.color-2 {
+  background-color: #EC3C4E;
+  box-shadow: inset -2px -2px 0px 1px rgba(0, 0, 0, 0.1), inset 2px 2px 0px 1px rgba(0, 0, 0, 0.1);
+}
+.color-3 {
+  background-color: #FFCF4A;
+  box-shadow: inset -2px -2px 0px 1px rgba(0, 0, 0, 0.1), inset 2px 2px 0px 1px rgba(0, 0, 0, 0.1);
+}
+.color-4 {
+  background-color: #39C9DC;
+  box-shadow: inset -2px -2px 0px 1px rgba(0, 0, 0, 0.1), inset 2px 2px 0px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Modal for Winner */
+.modal-content {
+  text-align: center;
+}
+
+#roll-dice {
+  width: 100px;
+  height: 100px;
+  font-size: 24px;
+  border-radius: 10%;
+  border: 4px solid #333 ;
+  margin: 8px auto;
+  display: block;
+  padding: 0;
+}
+
+.modal-content {
+  text-align: center;
+}
+
+.cell-text {  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+  position: absolute;
+}
+
+.slide {
+  transition: transform 0.5s ease-in-out; /* Smooth sliding animation */
+}
+
+.alert-container {
+  position: fixed;
+  z-index: 9999;
+  top: 16px;
+  left: 0;
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.alert-container .alert {
+  min-width: 400px;
+  margin-bottom: 8px;
+  padding: 4px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alert-container .alert button {
+  padding: 4px;
+  position: relative;
+}
+/***Dice animation ***/
+@keyframes roll {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(1080deg);
+  }
+}
+
+#roll-dice.animate {
+  animation: roll 1.5s ease-in-out;
+}
