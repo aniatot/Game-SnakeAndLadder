@@ -13,8 +13,19 @@
 </head>
 <body>
   <div class="container text-center">
+    <!-- Game Selection -->
+    <div id="game-selection" class="game-selection">
+      <h1 class="mb-4">Choose Your Game</h1>
+      <div class="d-grid gap-3" style="max-width: 400px; margin: 0 auto;">
+        <button class="btn btn-primary btn-lg" onclick="selectGame('snake-ladder')">Snake and Ladder</button>
+        <button class="btn btn-success btn-lg" onclick="selectGame('grow-viper')">Grow-Viper</button>
+        <button class="btn btn-warning btn-lg" onclick="selectGame('coin-picker')">Coin-Picker</button>
+      </div>
+    </div>
+
     <!-- Player Setup -->
-    <div id="player-setup" class="player-setup">
+    <div id="player-setup" class="player-setup d-none">
+      <button class="btn btn-secondary btn-sm home-btn" onclick="goHome()">🏠 Home</button>
       <h2>Select Number of Players</h2>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="setupGame(2)">2 Players</button>
@@ -25,6 +36,7 @@
 
     <!-- Game Board -->
     <div id="game-board" class="d-none">
+      <button class="btn btn-secondary btn-sm home-btn" onclick="goHome()">🏠 Home</button>
       <div id="alert-container" class="alert-container"></div>
       <div id="timer" class="timer">Time Left: <span id="time-left">120</span> seconds</div>
       <div id="board-wrapper">

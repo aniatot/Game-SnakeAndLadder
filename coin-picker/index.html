@@ -352,6 +352,16 @@
 
             return (
                 <>
+                    {/* Home Button */}
+                    <div className="fixed top-4 left-4 z-40">
+                        <button
+                            onClick={() => window.location.href = '../index.html'}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
+                            title="Go to Game Selection"
+                        >
+                            🏠 Home
+                        </button>
+                    </div>
                     {/* Theme Toggle Button */}
                     <div className="fixed top-4 right-4 z-40">
                         <button

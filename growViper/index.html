@@ -398,27 +398,38 @@
       const isAgePopup = gameState.isAgePopup;
       return (
         <div className={`min-h-screen font-inter flex flex-col items-center justify-center p-4 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}> 
-          {/* Theme Toggle Button (not in age popup) */}
+          {/* Home and Theme Toggle Buttons (not in age popup) */}
           {!isAgePopup && (
-            <div className="fixed top-4 right-4 z-40">
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-yellow-300 border-yellow-400 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
-                title="Toggle Theme"
-              >
-                {theme === 'dark' ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-8.66l-.71.71M4.05 19.07l-.71.71M21 12h-1M4 12H3m16.95 7.07l-.71-.71M4.05 4.93l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    Dark
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" /></svg>
-                    Light
-                  </>
-                )}
-              </button>
-            </div>
+            <>
+              <div className="fixed top-4 left-4 z-40">
+                <button
+                  onClick={() => window.location.href = '../index.html'}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-600 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
+                  title="Go to Game Selection"
+                >
+                  🏠 Home
+                </button>
+              </div>
+              <div className="fixed top-4 right-4 z-40">
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-yellow-300 border-yellow-400 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
+                  title="Toggle Theme"
+                >
+                  {theme === 'dark' ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-8.66l-.71.71M4.05 19.07l-.71.71M21 12h-1M4 12H3m16.95 7.07l-.71-.71M4.05 4.93l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                      Dark
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" /></svg>
+                      Light
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
           )}
           {/* Header Section */}
           <header className={`w-full max-w-lg mb-8 text-center p-4 rounded-xl shadow-lg border-b-4 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}> 

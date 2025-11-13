@@ -1,3 +1,48 @@
+// Game Selection Function
+function selectGame(game) {
+  const gameSelection = document.getElementById('game-selection');
+  const playerSetup = document.getElementById('player-setup');
+  
+  if (game === 'snake-ladder') {
+    // Current game - proceed to player setup
+    gameSelection.classList.add('d-none');
+    playerSetup.classList.remove('d-none');
+  } else if (game === 'grow-viper') {
+    // Redirect to Grow-Viper game
+    window.location.href = 'growViper/index.html';
+  } else if (game === 'coin-picker') {
+    // Redirect to Coin-Picker game
+    window.location.href = 'coin-picker/index.html';
+  }
+}
+
+// Go Home Function - Return to Game Selection
+function goHome() {
+  // Reset game state
+  players = [];
+  positions = [0, 0, 0, 0];
+  currentPlayerIndex = 0;
+  totalPlayers = 0;
+  winnerMessage = '';
+  
+  // Hide all screens
+  document.getElementById('player-setup').classList.add('d-none');
+  document.getElementById('game-board').classList.add('d-none');
+  
+  // Show game selection
+  document.getElementById('game-selection').classList.remove('d-none');
+  
+  // Clear the board
+  const board = document.getElementById('board');
+  if (board) board.innerHTML = '';
+  
+  // Clear tokens from start and home
+  const homeCell = document.getElementById('home');
+  if (homeCell) homeCell.innerHTML = '<span>Home</span>';
+  const startCell = document.getElementById('start');
+  if (startCell) startCell.innerHTML = '<span>Start</span>';
+}
+
 const snakes = { 99: 54, 87: 36, 62: 19, 17: 7 };
 //const snakes = { 2: 1};
 const ladders = { 3: 22, 6: 25, 20: 29, 30: 90, 57: 76, 72: 91 };
