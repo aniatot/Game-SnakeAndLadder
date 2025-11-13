@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standalone Snake Game</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Load Babel for JSX and ES6 support -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Define Inter font globally */
+        :root {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Faster pulse animation for light theme */
+        .animate-pulse-fast {
+            animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // --- CONFIGURATION CONSTANTS (Copied from SnakeGame.jsx) ---
+    const GRID_SIZE = 20;
+    const INITIAL_SPEED_MS = 500;
+    const SPEED_INCREASE_MS = 10;
+    const WIN_CONDITION_LENGTH = 53;
+    const COLOR_CYCLE_POINTS = 5;
+    const COLORS = [
+  'bg-fuchsia-600 shadow-fuchsia-400/50',
+  'bg-emerald-600 shadow-emerald-400/50',
+  'bg-amber-600 shadow-amber-400/50',
+  'bg-indigo-600 shadow-indigo-400/50',
+  'bg-red-600 shadow-red-400/50',
+    ];
+    const LABELS = [
+      'Hatchling',
+      'Juvenile',
+      'Explorer',
+      'Hunter',
+      'Colossus',
+    ];
+
+    const DIRECTIONS = {
+      ArrowUp: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+    };
+
+    const getInitialState = () => ({
+      snake: [
+        { x: Math.floor(GRID_SIZE / 2), y: Math.floor(GRID_SIZE / 2) },
+        { x: Math.floor(GRID_SIZE / 2), y: Math.floor(GRID_SIZE / 2) + 1 },
+        { x: Math.floor(GRID_SIZE / 2), y: Math.floor(GRID_SIZE / 2) + 2 },
+      ],
+      direction: 'ArrowUp',
+      score: 0,
+      speed: INITIAL_SPEED_MS,
+      isGameOver: false,
+      isGameWon: false,
+      isPaused: false,
+    });
+
+    const generateFood = (snake) => {
+      let newFood;
+      let isInvalid;
+      do {
+        newFood = {
+          x: Math.floor(Math.random() * GRID_SIZE),
+          y: Math.floor(Math.random() * GRID_SIZE),
+        };
+        isInvalid = snake.some(segment => segment.x === newFood.x && segment.y === newFood.y);
+      } while (isInvalid);
+      return newFood;
+    };
+
+    // --- APP COMPONENT ---
+
+    const App = () => {
+      // Theme state
+      const [theme, setTheme] = useState('dark');
+
+      useEffect(() => {
+        document.body.classList.remove('bg-gray-900', 'bg-gray-100', 'theme-dark', 'theme-light');
+        if (theme === 'dark') {
+          document.body.classList.add('theme-dark', 'bg-gray-900');
+        } else {
+          document.body.classList.add('theme-light', 'bg-gray-100');
+        }
+      }, [theme]);
+      const [gameState, setGameState] = useState(() => ({
+        ...getInitialState(),
+        food: generateFood(getInitialState().snake),
+      }));
+
+      const { snake, direction, food, score, speed, isGameOver, isGameWon, isPaused } = gameState;
+      const directionRef = useRef(direction);
+      const directionQueueRef = useRef([]);
+      const lastProcessedDirectionRef = useRef(direction);
+      const [isSpeedBoost, setIsSpeedBoost] = useState(false);
+
+      useEffect(() => {
+        directionRef.current = direction;
+      }, [direction]);
+
+      const colorIndex = Math.min(Math.floor(score / COLOR_CYCLE_POINTS), COLORS.length - 1);
+      const currentSnakeColor = COLORS[colorIndex];
+      const currentLabel = LABELS[colorIndex];
+      const isGameRunning = !isGameOver && !isGameWon && !isPaused;
+
+      // --- GAME LOGIC LOOP ---
+      const moveSnake = useCallback(() => {
+        if (!isGameRunning) return;
+
+        setGameState(prev => {
+          // Process next direction from queue if available
+          if (directionQueueRef.current.length > 0) {
+            const nextDir = directionQueueRef.current.shift();
+            directionRef.current = nextDir;
+            lastProcessedDirectionRef.current = nextDir;
+          }
+
+          const currentDir = directionRef.current;
+          const { snake: currentSnake, food: currentFood, score: currentScore } = prev;
+
+          const delta = DIRECTIONS[currentDir];
+          const newHead = { x: currentSnake[0].x + delta.x, y: currentSnake[0].y + delta.y };
+
+          // 1. Check for collisions (Wall or Self)
+          const hitWall = newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE;
+          const hitSelf = currentSnake.some((segment, index) => index !== 0 && segment.x === newHead.x && segment.y === newHead.y);
+
+          if (hitWall || hitSelf) {
+            return { ...prev, isGameOver: true };
+          }
+
+          // 2. Check for win condition (Length = 53)
+          if (currentSnake.length >= WIN_CONDITION_LENGTH) {
+            return { ...prev, isGameWon: true };
+          }
+
+          // 3. Move snake body
+          let newSnake = [newHead, ...currentSnake];
+          let newFood = currentFood;
+          let newScore = currentScore;
+          let newSpeed = prev.speed;
+
+          // 4. Check if food is eaten
+          const ateFood = newHead.x === currentFood.x && newHead.y === currentFood.y;
+
+          if (ateFood) {
+            newScore += 1;
+            newFood = generateFood(newSnake);
+            newSpeed = Math.max(50, INITIAL_SPEED_MS - newScore * SPEED_INCREASE_MS);
+
+          } else {
+            // Remove the tail if no food was eaten
+            newSnake = newSnake.slice(0, -1);
+          }
+
+          return {
+            ...prev,
+            snake: newSnake,
+            food: newFood,
+            score: newScore,
+            speed: newSpeed,
+            direction: currentDir,
+          };
+        });
+      }, [isGameRunning]);
+
+      // Game Loop Interval
+      useEffect(() => {
+        if (!isGameRunning) return;
+
+        const currentSpeed = isSpeedBoost ? 50 : speed;
+        const gameTick = setInterval(moveSnake, currentSpeed);
+        return () => clearInterval(gameTick);
+      }, [moveSnake, isGameRunning, speed, isSpeedBoost]);
+
+
+      // --- INPUT HANDLING ---
+      const handleKeyDown = useCallback((e) => {
+        // Handle speed boost with Shift key
+        if (e.key === 'Shift') {
+          if (!isGameOver && !isGameWon && !isPaused) {
+            setIsSpeedBoost(true);
+          }
+          return;
+        }
+
+        // Handle pause/resume with spacebar
+        if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+          if (!isGameOver && !isGameWon) {
+            setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+          }
+          return;
+        }
+
+        // Handle restart with 'R' key
+        if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          restartGame();
+          return;
+        }
+
+        if (!DIRECTIONS[e.key]) return;
+
+        e.preventDefault();
+
+        // Use the last processed direction to check for opposite moves
+        const currentDir = lastProcessedDirectionRef.current;
+        const isOpposite = (
+          (e.key === 'ArrowUp' && currentDir === 'ArrowDown') ||
+          (e.key === 'ArrowDown' && currentDir === 'ArrowUp') ||
+          (e.key === 'ArrowLeft' && currentDir === 'ArrowRight') ||
+          (e.key === 'ArrowRight' && currentDir === 'ArrowLeft')
+        );
+
+        if (!isOpposite) {
+          // Only allow one queued direction change at a time
+          if (directionQueueRef.current.length === 0) {
+            directionQueueRef.current.push(e.key);
+          } else if (directionQueueRef.current.length === 1) {
+            // Allow one more in queue for smooth cornering
+            const queuedDir = directionQueueRef.current[0];
+            const isOppositeToQueued = (
+              (e.key === 'ArrowUp' && queuedDir === 'ArrowDown') ||
+              (e.key === 'ArrowDown' && queuedDir === 'ArrowUp') ||
+              (e.key === 'ArrowLeft' && queuedDir === 'ArrowRight') ||
+              (e.key === 'ArrowRight' && queuedDir === 'ArrowLeft')
+            );
+            if (!isOppositeToQueued && e.key !== queuedDir) {
+              directionQueueRef.current[0] = e.key;
+            }
+          }
+        }
+      }, [isGameOver, isGameWon]);
+
+      // Handle keyup for shift release
+      const handleKeyUp = useCallback((e) => {
+        if (e.key === 'Shift') {
+          setIsSpeedBoost(false);
+        }
+      }, []);
+
+      useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+          window.removeEventListener('keydown', handleKeyDown);
+          window.removeEventListener('keyup', handleKeyUp);
+        };
+      }, [handleKeyDown, handleKeyUp]);
+
+      // --- GAME CONTROLS ---
+      const restartGame = () => {
+        setGameState({
+          ...getInitialState(),
+          food: generateFood(getInitialState().snake),
+        });
+      };
+
+      const togglePause = () => {
+        if (!isGameOver && !isGameWon) {
+          setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+        }
+      };
+
+      const handleContextMenu = (e) => {
+        e.preventDefault();
+        if (!isGameOver && !isGameWon && !isPaused) {
+          setIsSpeedBoost(true);
+        }
+      };
+
+      const handleMouseUp = (e) => {
+        if (e.button === 2) {
+          setIsSpeedBoost(false);
+        }
+      };
+
+
+      // --- RENDER FUNCTIONS ---
+
+      const renderGrid = () => (
+        <div
+          className="grid border-4 border-gray-700 rounded-lg shadow-xl"
+          style={{
+            gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${GRID_SIZE}, minmax(0, 1fr))`,
+            width: '100%',
+            maxWidth: '500px',
+            aspectRatio: '1 / 1'
+          }}
+          onContextMenu={handleContextMenu}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={() => setIsSpeedBoost(false)}
+        >
+          {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, index) => {
+            const x = index % GRID_SIZE;
+            const y = Math.floor(index / GRID_SIZE);
+            const isSnakeSegment = snake.some(segment => segment.x === x && segment.y === y);
+            const isFood = food.x === x && food.y === y;
+            const isHead = isSnakeSegment && snake[0].x === x && snake[0].y === y;
+
+            let cellClasses = 'w-full h-full';
+
+            if (isSnakeSegment) {
+              const snakeColor = theme === 'dark' ? currentSnakeColor : currentSnakeColor.replace(/shadow-\S+/g, '').trim();
+              if (isHead) {
+                // Glowing effect for head cell: yellow glow in dark, red with fast pulse in light
+                if (theme === 'dark') {
+                  cellClasses += ` ${snakeColor} transition-colors duration-100 ease-linear rounded-md shadow-[0_0_16px_6px_rgba(255,255,0,0.7)]`;
+                } else {
+                  cellClasses += ` bg-red-600 transition-colors duration-100 ease-linear rounded-md animate-pulse-fast shadow-xl`;
+                }
+                return <div key={index} className={cellClasses} />;
+              } else {
+                // Normal shadow for body
+                cellClasses += ` ${snakeColor} transition-colors duration-100 ease-linear rounded-md shadow-lg`;
+              }
+            } else if (isFood) {
+              // Food: red, slightly rounded, not fully round
+              cellClasses += theme === 'dark'
+                ? ' bg-red-500 rounded-md animate-pulse shadow-xl shadow-red-300/50'
+                : ' bg-red-600 rounded-md animate-pulse shadow-xl shadow-red-400/70';
+            } else {
+              cellClasses += theme === 'dark' ? ' bg-gray-900/10' : ' bg-gray-200';
+            }
+
+            return <div key={index} className={cellClasses} />;
+          })}
+        </div>
+      );
+
+      const renderStatusOverlay = () => {
+        let message = '';
+        let bgColor = '';
+        let textColor = 'text-white';
+        let showRestartButton = false;
+
+        if (isPaused) {
+          message = 'PAUSED';
+          bgColor = 'bg-blue-700/90';
+          textColor = 'text-blue-100';
+        } else if (isGameOver) {
+          message = 'GAME OVER';
+          bgColor = 'bg-red-700/90';
+          textColor = 'text-red-100';
+          showRestartButton = true;
+        } else if (isGameWon) {
+          message = 'YOU WON! COLOSSAL SNAKE';
+          bgColor = 'bg-lime-600/90';
+          textColor = 'text-lime-50';
+          showRestartButton = true;
+        } else {
+          return null;
+        }
+
+        return (
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className={`p-8 rounded-xl shadow-2xl text-center backdrop-blur-sm ${bgColor} ${textColor}`}>
+              <h2 className="text-4xl md:text-5xl font-extrabold mb-4 uppercase tracking-widest">{message}</h2>
+              {!isPaused && <p className="text-xl mb-6 font-medium">Score: {score} Food Blocks</p>}
+              {isPaused && <p className="text-lg mb-4 font-medium">Press <span className="font-bold">SPACE</span> to resume</p>}
+              {showRestartButton && (
+                <button
+                  onClick={restartGame}
+                  className="px-6 py-3 bg-white text-gray-900 font-bold rounded-full transition duration-300 transform hover:scale-105 shadow-xl uppercase tracking-wider text-lg"
+                >
+                  Restart Game
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const isAgePopup = gameState.isAgePopup;
+      return (
+        <div className={`min-h-screen font-inter flex flex-col items-center justify-center p-4 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}> 
+          {/* Theme Toggle Button (not in age popup) */}
+          {!isAgePopup && (
+            <div className="fixed top-4 right-4 z-40">
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-yellow-300 border-yellow-400 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
+                title="Toggle Theme"
+              >
+                {theme === 'dark' ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-8.66l-.71.71M4.05 19.07l-.71.71M21 12h-1M4 12H3m16.95 7.07l-.71-.71M4.05 4.93l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    Dark
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" /></svg>
+                    Light
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+          {/* Header Section */}
+          <header className={`w-full max-w-lg mb-8 text-center p-4 rounded-xl shadow-lg border-b-4 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}> 
+            <h1 className={`text-3xl font-extrabold tracking-wider ${theme === 'dark' ? 'text-teal-400' : 'text-fuchsia-700'}`}>
+              React Snake
+            </h1>
+            <div className="flex justify-between mt-4 text-xl font-medium">
+              <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
+                Score: <span className={theme === 'dark' ? 'font-bold text-yellow-400' : 'font-bold text-yellow-600'}>{score}</span>
+              </p>
+              <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
+                Label: <span className={theme === 'dark' ? 'font-bold text-teal-300' : 'font-bold text-fuchsia-700'}>{currentLabel}</span>
+              </p>
+              <p className={`hidden sm:block ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                Speed: <span className={theme === 'dark' ? 'font-bold text-red-400' : 'font-bold text-red-600'}>{((INITIAL_SPEED_MS - speed) / SPEED_INCREASE_MS) + 1}</span>
+              </p>
+            </div>
+          </header>
+
+          {/* Game Area */}
+          <main className="w-full max-w-lg relative">
+            <div className={`aspect-square rounded-xl overflow-hidden relative ${theme === 'dark' ? 'bg-gray-900' : 'bg-white border border-gray-200'}`}> 
+              {renderGrid()}
+              {renderStatusOverlay()}
+            </div>
+          </main>
+
+          {/* Instructions & Controls */}
+          <footer className="w-full max-w-lg mt-8 text-center">
+            <p className="text-sm font-medium text-gray-500 mb-4">
+              Use the <span className="text-yellow-400 font-bold">Arrow Keys</span> to move. Press <span className="text-blue-400 font-bold">SPACE</span> to pause. Press <span className="text-green-400 font-bold">R</span> to restart. Hold <span className="text-purple-400 font-bold">SHIFT</span> or <span className="text-purple-400 font-bold">Right-Click</span> for speed boost. Reach length {WIN_CONDITION_LENGTH} to win!
+            </p>
+            
+            {/* Control Buttons Layout */}
+            <div className="flex justify-center items-start gap-8">
+              {/* Additional Control Buttons - Left Side */}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={togglePause}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md font-bold shadow-lg shadow-blue-600/50 hover:bg-blue-500 transition-colors"
+                    title="Pause/Resume (Space)"
+                  >
+                    {isPaused ? '▶ Resume' : '⏸ Pause'}
+                  </button>
+                  <button
+                    onClick={restartGame}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md font-bold shadow-lg shadow-green-600/50 hover:bg-green-500 transition-colors"
+                    title="Restart (R)"
+                  >
+                    ↻ Restart
+                  </button>
+                </div>
+                <button
+                  onMouseDown={() => !isGameOver && !isGameWon && !isPaused && setIsSpeedBoost(true)}
+                  onMouseUp={() => setIsSpeedBoost(false)}
+                  onMouseLeave={() => setIsSpeedBoost(false)}
+                  className={`px-4 py-2 ${isSpeedBoost ? 'bg-purple-500' : 'bg-purple-600'} text-white rounded-md font-bold shadow-lg shadow-purple-600/50 hover:bg-purple-500 transition-colors w-full`}
+                  title="Speed Boost (Shift or Right-click on game)"
+                >
+                  ⚡ Boost
+                </button>
+              </div>
+
+              {/* Arrow Keys - Right Side */}
+              <div className="flex flex-col items-center">
+                <button
+                  onClick={() => handleKeyDown({ key: 'ArrowUp', preventDefault: () => {} })}
+                  className="p-3 bg-gray-700 text-white rounded-md text-xl font-extrabold shadow-lg shadow-gray-700/50 hover:bg-gray-600 transition-colors"
+                >
+                  &#x25B2;
+                </button>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => handleKeyDown({ key: 'ArrowLeft', preventDefault: () => {} })}
+                    className="p-3 bg-gray-700 text-white rounded-md text-xl font-extrabold shadow-lg shadow-gray-700/50 hover:bg-gray-600 transition-colors"
+                  >
+                    &#x25C0;
+                  </button>
+                  <button
+                    onClick={() => handleKeyDown({ key: 'ArrowDown', preventDefault: () => {} })}
+                    className="p-3 bg-gray-700 text-white rounded-md text-xl font-extrabold shadow-lg shadow-gray-700/50 hover:bg-gray-600 transition-colors"
+                  >
+                    &#x25BC;
+                  </button>
+                  <button
+                    onClick={() => handleKeyDown({ key: 'ArrowRight', preventDefault: () => {} })}
+                    className="p-3 bg-gray-700 text-white rounded-md text-xl font-extrabold shadow-lg shadow-gray-700/50 hover:bg-gray-600 transition-colors"
+                  >
+                    &#x25B6;
+                  </button>
+                </div>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    };
+
+    // --- RENDER THE APP ---
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+    </script>
+</body>
+</html>

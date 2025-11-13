@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Chaser React Game</title>
+    <!-- Load Tailwind CSS CDN for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load React and ReactDOM from CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Load Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Theme for modal dialog overlay and box */
+        .theme-dark #age-modal {
+            background-color: rgba(17, 24, 39, 0.95); /* gray-900/95 */
+        }
+        .theme-light #age-modal {
+            background-color: rgba(243, 244, 246, 0.95); /* gray-100/95 */
+        }
+        .theme-dark .age-dialog-box {
+            background-color: #1f2937; /* gray-800 */
+            color: #fff;
+        }
+        .theme-light .age-dialog-box {
+            background-color: #fff;
+            color: #1f2937; /* gray-800 text */
+        }
+        /* Custom CSS for visual polish and coin animation */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .coin-svg {
+            /* Ensures the coin is centered on its position */
+            transform: translate(-50%, -50%);
+            transition: all 0.2s ease-out; /* Smooth transition for movement */
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+        }
+        .game-area {
+            background-color: #2C3E50; /* Dark blue background for contrast */
+        }
+        .game-area.playing .coin-svg {
+            cursor: pointer;
+        }
+        .game-area.paused .coin-svg,
+        .game-area.lost .coin-svg,
+        .game-area.won .coin-svg {
+            opacity: 0.5;
+            cursor: default;
+        }
+        .theme-dark .stat-value { color: #fff; }
+        .theme-light .stat-value { color: #111827; } /* Tailwind gray-900 */
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="root">
+        <!-- React component will be mounted here -->
+    </div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        const WIN_SCORE = 50;
+
+        // --- Utility Functions ---
+
+        const initAudioContext = (audioContextRef) => {
+            if (!audioContextRef.current) {
+                try {
+                    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.error("Web Audio API not supported", e);
+                }
+            }
+        };
+
+        const useCollectSound = (audioContextRef) => {
+            initAudioContext(audioContextRef);
+            return useCallback(() => {
+                const context = audioContextRef.current;
+                if (!context) return;
+                
+                try {
+                    if (context.state === 'suspended') {
+                        context.resume();
+                    }
+
+                    const oscillator = context.createOscillator();
+                    const gainNode = context.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(context.destination);
+
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(520, context.currentTime); 
+                    gainNode.gain.setValueAtTime(0.5, context.currentTime); 
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.15);
+                    
+                    oscillator.start();
+                    oscillator.stop(context.currentTime + 0.15);
+                } catch (e) {
+                    console.error("Audio playback error:", e);
+                }
+            }, []);
+        };
+
+
+        function App() {
+            // --- State Management ---
+            const [score, setScore] = useState(0);
+            const [misses, setMisses] = useState(0);
+            const [currentMaxMisses, setCurrentMaxMisses] = useState(1);
+            const [gameStatus, setGameStatus] = useState('age_input'); // 'age_input', 'playing', 'paused', 'won', 'lost'
+            const [coinPosition, setCoinPosition] = useState({ x: 50, y: 50 });
+            const [selectedAge, setSelectedAge] = useState(null);
+            const [countdownTime, setCountdownTime] = useState('--');
+            const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
+
+            useEffect(() => {
+                document.body.classList.remove('bg-gray-900', 'bg-gray-100', 'theme-dark', 'theme-light');
+                if (theme === 'dark') {
+                    document.body.classList.add('theme-dark', 'bg-gray-900');
+                } else {
+                    document.body.classList.add('theme-light', 'bg-gray-100');
+                }
+            }, [theme]);
+            
+            // --- Refs for Timers/Context (mutable, non-state values) ---
+            const timerRef = useRef(null); // Primary setTimeout for coin movement
+            const intervalRef = useRef(null); // setInterval ID for countdown display
+            const nextMoveTimestampRef = useRef(0); // The target time for the next coin move
+            const isCoinCollectedRef = useRef(false); // Flag for the current round
+            const audioContextRef = useRef(null);
+
+            const playCollectSound = useCollectSound(audioContextRef);
+
+
+            // --- Core Game Logic Callbacks ---
+
+            const clearTimers = useCallback(() => {
+                if (timerRef.current) {
+                    clearTimeout(timerRef.current);
+                    timerRef.current = null;
+                }
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+                nextMoveTimestampRef.current = 0;
+                setCountdownTime('--');
+            }, []);
+            
+            const moveCoin = useCallback(() => {
+                // Generates a random position (5% padding from edges)
+                const newX = Math.floor(Math.random() * 90) + 5; 
+                const newY = Math.floor(Math.random() * 90) + 5; 
+                setCoinPosition({ x: newX, y: newY });
+            }, []);
+            
+            // Function to update the countdown text on the screen
+            const updateCountdownDisplay = useCallback(() => {
+                if (gameStatus === 'playing' && nextMoveTimestampRef.current > 0) {
+                    const remaining = nextMoveTimestampRef.current - Date.now();
+                    if (remaining > 0) {
+                        setCountdownTime((remaining / 1000).toFixed(1) + 's');
+                    } else {
+                        setCountdownTime('0.0s');
+                    }
+                }
+            }, [gameStatus]);
+
+            // Schedules the next coin move and starts the countdown timer
+            const startCycle = useCallback((initialDelay) => {
+                clearTimers(); 
+                
+                // 1000ms to 3000ms delay for the coin move
+                const delay = initialDelay || (Math.random() * 2000 + 1000); 
+                nextMoveTimestampRef.current = Date.now() + delay;
+                
+                // Start the interval for the visual countdown
+                if (!intervalRef.current) {
+                    intervalRef.current = setInterval(updateCountdownDisplay, 100);
+                }
+
+                // Schedule the runCycle to fire after the delay
+                timerRef.current = setTimeout(() => {
+                    // This function runs when the timer expires
+                    if (gameStatus === 'playing' && !isCoinCollectedRef.current) {
+                        setMisses(prevMisses => {
+                            const newMisses = prevMisses + 1;
+                            if (newMisses >= currentMaxMisses) {
+                                setGameStatus('lost');
+                                clearTimers();
+                            }
+                            return newMisses;
+                        });
+                    }
+                    
+                    // Proceed to the next round if the game is still playing (not lost)
+                    if (gameStatus === 'playing' && misses < currentMaxMisses) {
+                        isCoinCollectedRef.current = false;
+                        moveCoin();
+                        startCycle(); // Start a new cycle immediately
+                    }
+                }, delay);
+            }, [clearTimers, currentMaxMisses, gameStatus, misses, moveCoin, updateCountdownDisplay]);
+
+            // Resets game state and starts playing
+            const startNewRound = useCallback(() => {
+                clearTimers();
+                setScore(0);
+                setMisses(0);
+                isCoinCollectedRef.current = false;
+                moveCoin(); // Initial coin placement
+                setGameStatus('playing'); 
+            }, [clearTimers, moveCoin]);
+
+            // Resets all state, including difficulty selection
+            const fullGameReset = useCallback(() => {
+                clearTimers();
+                setScore(0);
+                setMisses(0);
+                setCurrentMaxMisses(1);
+                setSelectedAge(null);
+                isCoinCollectedRef.current = false;
+                setGameStatus('age_input');
+            }, [clearTimers]);
+
+
+            // --- Event Handlers ---
+
+            const handleCoinClick = useCallback((event) => {
+                event.stopPropagation(); 
+                if (gameStatus !== 'playing') return;
+
+                // Stop the current timer
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+                
+                isCoinCollectedRef.current = true;
+                playCollectSound();
+
+                setScore(prevScore => {
+                    const newScore = prevScore + 1;
+                    if (newScore >= WIN_SCORE) {
+                        setGameStatus('won');
+                        setTimeout(startNewRound, 2000); 
+                    } else {
+                        moveCoin();
+                        startCycle(100); // Short delay to prevent immediate new miss if user takes too long
+                    }
+                    return newScore;
+                });
+            }, [gameStatus, playCollectSound, moveCoin, startCycle, startNewRound]);
+
+            const handlePauseToggle = useCallback(() => {
+                if (gameStatus === 'playing') {
+                    setGameStatus('paused');
+                } else if (gameStatus === 'paused') {
+                    // When resuming, we immediately restart the cycle
+                    setGameStatus('playing');
+                }
+            }, [gameStatus]);
+
+            const handleAgeSubmit = useCallback(() => {
+                if (selectedAge === null) return;
+                
+                // 12 or more = Hard Mode (1 Miss). Below 12 = Easy Mode (2 Misses).
+                setCurrentMaxMisses(selectedAge < 12 ? 2 : 1);
+                
+                // Start the game
+                startNewRound();
+            }, [selectedAge, startNewRound]);
+
+
+            // --- Effects (Side Effects and Event Binding) ---
+
+            // Effect to manage starting the game cycle when status changes to 'playing'
+            useEffect(() => {
+                if (gameStatus === 'playing') {
+                    // Ensure coin moves to a starting position and timer starts fresh
+                    moveCoin();
+                    startCycle();
+                } else {
+                    // Clear primary timer when game is paused/lost/won
+                    clearTimeout(timerRef.current);
+                    timerRef.current = null;
+                    if (gameStatus !== 'paused') {
+                        // Clear countdown interval only if not paused (pausing keeps the last time displayed)
+                        if (intervalRef.current) {
+                            clearInterval(intervalRef.current);
+                            intervalRef.current = null;
+                            if (gameStatus !== 'won' && gameStatus !== 'lost') {
+                                setCountdownTime('--');
+                            }
+                        }
+                    }
+                }
+            // Dependencies must include the functions because they reference mutable state/refs outside the scope
+            }, [gameStatus, startCycle, moveCoin]); 
+
+            // Effect to manage keyboard shortcuts
+            useEffect(() => {
+                const handleKeyDown = (event) => {
+                    if (gameStatus === 'age_input') return; 
+
+                    if (event.code === 'KeyR') {
+                        event.preventDefault(); 
+                        fullGameReset();
+                    } else if (event.code === 'Space') {
+                        event.preventDefault(); 
+                        if (gameStatus === 'won' || gameStatus === 'lost') return;
+                        handlePauseToggle();
+                    }
+                };
+
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, [gameStatus, handlePauseToggle, fullGameReset]);
+
+            // --- UI Elements based on State ---
+
+            const isGameActive = gameStatus === 'playing';
+            const difficultyText = currentMaxMisses === 2 ? 'Easy Mode (2 Misses)' : 'Hard Mode (1 Miss)';
+            
+            let messageContent = null;
+            let messageClass = "text-5xl font-extrabold text-white p-6 rounded-xl shadow-2xl backdrop-blur-sm";
+
+            switch (gameStatus) {
+                case 'paused':
+                    messageContent = 'PAUSED';
+                    messageClass += ' bg-yellow-600/90 animate-pulse';
+                    break;
+                case 'won':
+                    messageContent = 'YOU WIN! 🎉 (Restarting...)';
+                    messageClass += ' bg-green-700/90';
+                    break;
+                case 'lost':
+                    messageContent = (
+                        <>
+                            GAME OVER. 😔
+                            <div className="mt-4 text-center text-lg font-medium">Press **R** to Restart</div>
+                        </>
+                    );
+                    messageClass += ' bg-red-700/90';
+                    break;
+                default:
+                    break;
+            }
+
+            return (
+                <>
+                    {/* Theme Toggle Button */}
+                    <div className="fixed top-4 right-4 z-40">
+                        <button
+                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-lg font-bold border-2 transition-colors duration-200 focus:outline-none ${theme === 'dark' ? 'bg-gray-800 text-yellow-300 border-yellow-400 hover:bg-gray-700' : 'bg-white text-gray-900 border-gray-400 hover:bg-gray-200'}`}
+                            title="Toggle Theme"
+                        >
+                            {theme === 'dark' ? (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m8.66-8.66l-.71.71M4.05 19.07l-.71.71M21 12h-1M4 12H3m16.95 7.07l-.71-.71M4.05 4.93l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                    Dark
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" /></svg>
+                                    Light
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    {/* Main Title */}
+                    <h1 className="text-4xl font-black mb-8 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 tracking-wider">
+                        Coin Chaser (React)
+                    </h1>
+
+                    {/* Stats Panel */}
+                    <div className={`flex justify-between w-full max-w-2xl mb-4 p-4 rounded-xl shadow-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`}>
+                        {/* Score */}
+                        <div className="flex flex-col items-center p-2">
+                            <span className="text-xl font-bold text-green-400">SCORE</span>
+                            <span id="score-display" className="text-3xl font-extrabold stat-value">{score} / {WIN_SCORE}</span>
+                        </div>
+                        {/* Time Left */}
+                        <div className="flex flex-col items-center p-2">
+                            <span className="text-xl font-bold text-yellow-400">TIME LEFT</span>
+                            <span id="time-display" className="text-3xl font-extrabold stat-value">{countdownTime}</span>
+                        </div>
+                        {/* Misses */}
+                        <div className="flex flex-col items-center p-2">
+                            <span className="text-xl font-bold text-red-400">MISSES</span>
+                            <span id="misses-display" className="text-3xl font-extrabold stat-value">{misses} / {currentMaxMisses}</span>
+                        </div>
+                        {/* Status */}
+                        <div className="flex flex-col items-center p-2">
+                            <span className="text-xl font-bold text-purple-400">STATUS</span>
+                            <span id="status-display" className="text-3xl font-extrabold stat-value">{gameStatus.toUpperCase()}</span>
+                        </div>
+                    </div>
+
+                    {/* Game Area Container */}
+                    <div id="game-area" 
+                        className={`relative shadow-2xl rounded-xl border-4 border-purple-500 overflow-hidden game-area ${gameStatus} ${theme === 'dark' ? '' : 'bg-gray-200'}`} 
+                        style={{ width: '600px', height: '400px', maxWidth: '95vw', maxHeight: '70vh' }}>
+
+                        {/* Game Message Overlay */}
+                        {messageContent && (
+                            <div id="game-message" className="absolute inset-0 flex items-center justify-center backdrop-blur-sm z-20">
+                                <div className={messageClass}>
+                                    {messageContent}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* The Coin SVG (Position driven by state) */}
+                        <div id="coin" 
+                            className="absolute coin-svg" 
+                            onClick={handleCoinClick}
+                            style={{ 
+                                top: `${coinPosition.y}%`, 
+                                left: `${coinPosition.x}%`,
+                                pointerEvents: isGameActive ? 'auto' : 'none'
+                            }}>
+                            <svg width="50" height="50" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="#FFD700" stroke="#FFBF00" strokeWidth="5" />
+                                <text x="50" y="65" fontSize="40" textAnchor="middle" fill="#A0522D" fontWeight="bold">$</text>
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="mt-8 flex space-x-4">
+                        <button 
+                            onClick={fullGameReset}
+                            disabled={gameStatus === 'age_input'}
+                            className={`px-6 py-3 text-lg font-semibold rounded-full transition duration-150 shadow-md disabled:opacity-50 disabled:cursor-not-allowed
+                                ${theme === 'dark' 
+                                    ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-900/50' 
+                                    : 'bg-red-500 text-white hover:bg-red-600 shadow-red-300/50 border border-red-400'}
+                            `}
+                        >
+                            Restart (R)
+                        </button>
+                        <button 
+                            onClick={handlePauseToggle}
+                            disabled={gameStatus === 'won' || gameStatus === 'lost' || gameStatus === 'age_input'}
+                            className={`px-6 py-3 text-lg font-semibold rounded-full transition duration-150 shadow-md disabled:opacity-50 disabled:cursor-not-allowed
+                                ${theme === 'dark' 
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-900/50' 
+                                    : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-300/50 border border-blue-400'}
+                            `}
+                        >
+                            {gameStatus === 'paused' ? 'Resume (Space)' : 'Pause (Space)'}
+                        </button>
+                    </div>
+
+                    {/* Difficulty Info */}
+                    <p id="difficulty-info" className={`mt-4 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-700'}`}>
+                        **Difficulty:** {difficultyText} &bull; **Goal:** Click the coin before it moves (1-3s timer).
+                    </p>
+
+                    {/* Age Input Modal (Conditionally Rendered) */}
+                    {gameStatus === 'age_input' && (
+                        <div id="age-modal" className="absolute inset-0 flex items-center justify-center z-30">
+                            <div className="age-dialog-box p-8 rounded-xl shadow-2xl border-4 border-purple-500 max-w-sm w-full text-center">
+                                <h2 className="text-2xl font-bold mb-6">Select Your Age</h2>
+                                <p className="mb-6 text-left">
+                                    Age **12 or more**: 1 miss allowed (Hard Mode).<br/>
+                                    Age **below 12**: 2 misses allowed (Easy Mode).
+                                </p>
+                                
+                                <div className="flex gap-4 mb-6">
+                                    <button 
+                                        data-age="10"
+                                        onClick={() => setSelectedAge(10)}
+                                        className={`flex-1 px-6 py-4 text-2xl font-bold rounded-xl text-white transition duration-150 border-4 focus:outline-none 
+                                            ${selectedAge === 10 ? 'bg-purple-600 border-purple-400' : 'bg-gray-700 border-transparent hover:bg-purple-600'}`}>
+                                        Under 12
+                                    </button>
+                                    <button 
+                                        data-age="15"
+                                        onClick={() => setSelectedAge(15)}
+                                        className={`flex-1 px-6 py-4 text-2xl font-bold rounded-xl text-white transition duration-150 border-4 focus:outline-none 
+                                            ${selectedAge === 15 ? 'bg-purple-600 border-purple-400' : 'bg-gray-700 border-transparent hover:bg-purple-600'}`}>
+                                        12 or More
+                                    </button>
+                                </div>
+                                
+                                <button 
+                                    onClick={handleAgeSubmit}
+                                    disabled={selectedAge === null}
+                                    className="w-full px-6 py-3 text-lg font-semibold rounded-full text-white bg-green-600 hover:bg-green-700 transition duration-150 shadow-md shadow-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    Start Game
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        // --- Render the App ---
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
